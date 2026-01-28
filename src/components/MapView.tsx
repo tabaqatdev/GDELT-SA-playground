@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import Map, { NavigationControl, ViewState } from 'react-map-gl/maplibre';
+import Map, { ViewState } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import { DeckGL } from '@deck.gl/react';
 import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
@@ -9,7 +9,7 @@ import { useEvents } from '@/hooks/use-events';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/context/i18n-context';
 import { Button } from '@/components/ui/button';
-import { Layers, X, BookOpen } from 'lucide-react';
+import { Layers, X, BookOpen, Plus, Minus, Compass } from 'lucide-react';
 import { ArticleModal } from './ArticleModal';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -424,7 +424,6 @@ export function MapView() {
           }
           style={{ width: '100%', height: '100%' }}
         >
-          <NavigationControl position="top-right" />
         </Map>
       </DeckGL>
       
@@ -540,8 +539,57 @@ export function MapView() {
         </div>
       )}
 
-      {/* Layer Controls */}
-      <div className="absolute left-4 top-16 z-10">
+      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+        <div className="flex flex-col rounded-md border bg-background/90 shadow-lg backdrop-blur">
+          <Button
+            variant="ghost" 
+            size="icon"
+            className="h-8 w-8 rounded-none rounded-t-md border-b hover:bg-accent"
+            onClick={() => setViewState(v => ({
+              ...v,
+              zoom: (v.zoom || 0) + 1,
+              transitionDuration: 300
+            }))}
+            aria-label="Zoom In"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-none rounded-b-md hover:bg-accent"
+            onClick={() => setViewState(v => ({
+              ...v,
+              zoom: (v.zoom || 0) - 1,
+              transitionDuration: 300
+            }))}
+            aria-label="Zoom Out"
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 bg-background/90 shadow-lg backdrop-blur"
+          onClick={() => setViewState(v => ({
+            ...v,
+            bearing: 0,
+            pitch: 0,
+            transitionDuration: 500
+          }))}
+          aria-label="Reset North"
+        >
+          <Compass 
+            className="h-4 w-4 transition-transform duration-500" 
+            style={{ transform: `rotate(${-viewState.bearing}deg)` }} 
+          />
+        </Button>
+      </div>
+
+      {/* Layer Controls - Shifted down to avoid conflict */}
+      <div className="absolute left-4 top-4 z-10">
         <Button
           variant="outline"
           size="icon"
