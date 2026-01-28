@@ -42,9 +42,12 @@ export function DuckDBProvider({ children }: { children: ReactNode }) {
       const database = await duckdbClient.initializeDuckDB();
 
       console.log('Registering parquet file...');
+      const parquetUrl = `${import.meta.env.BASE_URL}final_enriched.parquet`;
+      console.log('Registering parquet file from:', parquetUrl);
+      
       await duckdbClient.registerParquetFile(
-        'final_enriched.parquet',
-        '/final_enriched.parquet'
+        'final_enriched.parquet', // Alias in DuckDB
+        parquetUrl                // Actual URL
       );
 
       console.log('Installing extensions...');
