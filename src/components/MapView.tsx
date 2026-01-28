@@ -1,15 +1,16 @@
-import { useState, useCallback, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import Map, { ViewState } from 'react-map-gl/maplibre';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import Map, { ViewState, MapRef, useControl } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
-import { DeckGL } from '@deck.gl/react';
+// import { DeckGL } from '@deck.gl/react'; // Removed
+import { MapboxOverlay } from '@deck.gl/mapbox';
 import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
-import { WebMercatorViewport, FlyToInterpolator } from '@deck.gl/core';
+import { PickingInfo } from '@deck.gl/core';
 import { useAppState } from '@/context/app-state-context';
 import { useEvents } from '@/hooks/use-events';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/context/i18n-context';
 import { Button } from '@/components/ui/button';
-import { Layers, X, BookOpen, Plus, Minus, Compass } from 'lucide-react';
+import { Layers, X, BookOpen, Plus, Minus, Compass, Globe } from 'lucide-react';
 import { ArticleModal } from './ArticleModal';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -22,6 +23,7 @@ const INITIAL_VIEW_STATE: ViewState = {
   padding: { top: 0, bottom: 0, left: 0, right: 0 },
 };
 
+// ... (keep constants) ...
 // RTL text plugin URL
 const RTL_PLUGIN_URL =
   "https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js";
@@ -33,6 +35,14 @@ const MAP_STYLES = {
 };
 
 type LayerMode = 'action' | 'actor1' | 'actor2' | 'arcs' | 'all';
+
+// DeckGL Overlay Component using useControl
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DeckGLOverlay(props: any) {
+  const overlay = useControl<MapboxOverlay>(() => new MapboxOverlay(props));
+  overlay.setProps(props);
+  return null;
+}
 
 export function MapView() {
   const [viewState, setViewState] = useState<ViewState>(INITIAL_VIEW_STATE);
@@ -46,6 +56,21 @@ export function MapView() {
   
   // Last FlyTo event ref to preventing loops
   const lastFlyToEventRef = useRef<string | null>(null);
+  
+  // Map Reference
+  const mapRef = useRef<MapRef>(null);
+  const [isGlobe, setIsGlobe] = useState(false);
+
+  // Toggle Projection
+  const toggleGlobe = useCallback(() => {
+    const newIsGlobe = !isGlobe;
+    setIsGlobe(newIsGlobe);
+    if (mapRef.current) {
+        mapRef.current.getMap().setProjection({
+            type: newIsGlobe ? 'globe' : 'mercator'
+        });
+    }
+  }, [isGlobe]);
 
   // Selected Arc State for Popup
   const [selectedArc, setSelectedArc] = useState<{
@@ -53,11 +78,14 @@ export function MapView() {
     targetPosition: [number, number];
     sourceName: string | null;
     targetName: string | null;
-    popupPosition: [number, number];
+    popupPosition: [number, number]; // Keep this, but we'll re-project lightly
     eventId: string;
     index: number;
+    // Store exact lat/lon for popup positioning if needed
+    arcMidPoint?: [number, number]; 
   } | null>(null);
 
+  // ... (keep Article Modal State) ...
   // Article Modal State
   const [modalArticle, setModalArticle] = useState<{
     title: string;
@@ -79,6 +107,7 @@ export function MapView() {
     }
   }, []);
   
+  // ... (keep Layer Modes & Toggle Helper) ...
   // Layer Modes Configuration
   const layerModes = [
     { value: 'action' as LayerMode, label: 'Points', color: 'bg-red-500' },
@@ -112,7 +141,7 @@ export function MapView() {
 
   // Update view state when selected event changes (Auto-Fly)
   useEffect(() => {
-    if (selectedEventId && arrowTable && isMapSyncEnabled) {
+    if (selectedEventId && arrowTable && isMapSyncEnabled && mapRef.current) {
       // If we just manually flew to this event, SKIP the auto-fly
       if (lastFlyToEventRef.current === selectedEventId) {
          lastFlyToEventRef.current = null; // Reset for next time
@@ -126,8 +155,6 @@ export function MapView() {
       if (!idCol || !latCol || !lonCol) return;
 
       // Find the row index for this ID
-      // Note: This is a linear scan, acceptable for client-side datasets < 100k
-      // For larger datasets, we'd want an index/map.
       let index = -1;
       for (let i = 0; i < arrowTable.numRows; i++) {
         if (idCol.get(i) === selectedEventId) {
@@ -141,16 +168,13 @@ export function MapView() {
         const lon = lonCol.get(index);
 
         if (lat != null && lon != null) {
-          setViewState(prev => ({
-            ...prev,
-            longitude: lon as number,
-            latitude: lat as number,
-            zoom: 12,
-            pitch: 50,
-            transitionDuration: 2000,
-            // Standard flyTo for list selection can remain simple or use the same dramatic effect
-            transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
-          }));
+           mapRef.current.flyTo({
+              center: [lon as number, lat as number],
+              zoom: 12,
+              pitch: 50,
+              speed: 1.5,
+              curve: 1.8
+           });
         }
       }
     }
@@ -191,13 +215,13 @@ export function MapView() {
           radiusMinPixels: 3,
           radiusMaxPixels: 30,
           lineWidthMinPixels: 1,
-          getPosition: (_: any, { index }: { index: number }) => {
+          getPosition: (_: unknown, { index }: { index: number }) => {
             const lon = lonCol.get(index);
             const lat = latCol.get(index);
             if (lon == null || lat == null) return [0, 0];
             return [lon as number, lat as number];
           },
-          getFillColor: (_: any, { index }: { index: number }) => {
+          getFillColor: (_: unknown, { index }: { index: number }) => {
              const sentiment = sentimentCol.get(index) as number;
              // Color scale based on sentiment: Red (neg) -> Grey -> Green (pos)
              if (sentiment < -5) return [239, 68, 68, 200]; // Red-500
@@ -205,7 +229,7 @@ export function MapView() {
              return [156, 163, 175, 200]; // Gray-400
           },
           getLineColor: [0, 0, 0, 80],
-          onClick: (info: any) => {
+          onClick: (info: PickingInfo) => {
              if (info.index >= 0 && idCol) {
                const id = idCol.get(info.index);
                if (id) selectEvent(id as string);
@@ -228,27 +252,32 @@ export function MapView() {
           data: wrappedData,
           pickable: true,
           opacity: 0.6,
-          getWidth: (_: any, { index }: { index: number }) => {
+          getWidth: (_: unknown, { index }: { index: number }) => {
             const sentiment = sentimentCol.get(index) as number;
-            return Math.abs(sentiment) * 0.5 + 1;
+            return Math.max(2, Math.abs(sentiment) * 0.5 + 1); // Ensure min width
           },
-          getSourcePosition: (_: any, { index }: { index: number }) => {
+          getSourcePosition: (_: unknown, { index }: { index: number }) => {
             const lon = actor1LonCol.get(index);
             const lat = actor1LatCol.get(index);
             if (lon == null || lat == null) return [0, 0, -1];
             return [lon as number, lat as number];
           },
-          getTargetPosition: (_: any, { index }: { index: number }) => {
+          getTargetPosition: (_: unknown, { index }: { index: number }) => {
             const lon = actor2LonCol.get(index);
             const lat = actor2LatCol.get(index);
             if (lon == null || lat == null) return [0, 0, -1];
             return [lon as number, lat as number];
           },
-          getSourceColor: [59, 130, 246, 200], // Blue (Actor 1)
-          getTargetColor: [168, 85, 247, 200], // Purple (Actor 2)
-          getHeight: 0.3,
+          getSourceColor: [59, 130, 246, 255], // Full opacity
+          getTargetColor: [168, 85, 247, 255], // Full opacity
+          getHeight: 0.5,
           greatCircle: true,
-          onClick: (info: any) => {
+          widthMinPixels: 2, // Ensure visibility at low zoom
+          // Force render on top to debug occlusion
+          parameters: {
+            depthTest: false
+          },
+          onClick: (info: PickingInfo) => {
             if (info.index >= 0 && idCol && actor1LatCol && actor1LonCol && actor2LatCol && actor2LonCol) {
               const index = info.index;
               const sourceLat = actor1LatCol.get(index) as number;
@@ -262,14 +291,16 @@ export function MapView() {
               const sourceName = actor1NameCol?.get(index) as string | null;
               const targetName = actor2NameCol?.get(index) as string | null;
 
-              if (sourceLat != null && sourceLon != null && targetLat != null && targetLon != null) {
+              if (sourceLat != null && sourceLon != null && targetLat != null && targetLon != null && info.coordinate) {
                 const id = idCol.get(index) as string;
+                // Calculate midpoint or just use click coordinate for popup
+                // We'll stick to click coordinate for now, or use info.coordinate
                 setSelectedArc({
                   sourcePosition: [sourceLon, sourceLat],
                   targetPosition: [targetLon, targetLat],
                   sourceName: sourceName || 'Actor 1',
                   targetName: targetName || 'Actor 2',
-                  popupPosition: info.coordinate,
+                  popupPosition: info.coordinate as [number, number], // This is lngLat in DeckGL
                   eventId: id,
                   index: index
                 });
@@ -287,7 +318,7 @@ export function MapView() {
   const bboxTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleViewStateChange = useCallback(
-    ({ viewState: newViewState }: any) => {
+    ({ viewState: newViewState }: { viewState: ViewState }) => {
       setViewState(newViewState);
       
       if (!isMapSyncEnabled) return;
@@ -299,54 +330,47 @@ export function MapView() {
 
       // Set new timeout (debounce)
       bboxTimeoutRef.current = setTimeout(() => {
-        const viewport = new WebMercatorViewport(newViewState);
-        const bounds = viewport.getBounds(); // [west, south, east, north]
-        if (bounds) {
-          updateBBox({
-            west: bounds[0],
-            south: bounds[1],
-            east: bounds[2],
-            north: bounds[3]
-          });
+        // If zoomed out significantly, clear bbox filter to show all global events
+        // This fixes the issue where wrapping bounds or globe view constraints return 0 results
+        if ((newViewState.zoom || 0) < 3) {
+           updateBBox(null);
+           return;
         }
+        
+        // Only calculate bounds if we are NOT in globe view or sufficiently zoomed in
+        // Ideally we use mapRef.current.getMap().getBounds() which handles current projection
+        if (mapRef.current) {
+             const bounds = mapRef.current.getMap().getBounds();
+             const west = bounds.getWest();
+             const east = bounds.getEast();
+             const south = bounds.getSouth();
+             const north = bounds.getNorth();
+
+             if (east - west >= 360) {
+                 updateBBox(null);
+             } else {
+                 updateBBox({ west, south, east, north });
+             }
+        } 
       }, 500); 
     },
     [updateBBox, isMapSyncEnabled]
   );
   
-  // Ref for container dimensions
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const { offsetWidth, offsetHeight } = containerRef.current;
-      setDimensions({ width: offsetWidth, height: offsetHeight });
-      
-      const observer = new ResizeObserver(entries => {
-        for (const entry of entries) {
-           setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
-        }
-      });
-      observer.observe(containerRef.current);
-      return () => observer.disconnect();
-    }
-  }, []);
-
-  // Calculate Popup Screen Position
+  // Calculate Popup Screen Position using MapLibre's project
+  // This is CRITICAL for Globe view correctness
   const popupPixel = useMemo(() => {
-     if (!selectedArc || dimensions.width === 0 || dimensions.height === 0) return null;
+     if (!selectedArc || !mapRef.current) return null;
      
-     const viewport = new WebMercatorViewport({
-        ...viewState,
-        width: dimensions.width,
-        height: dimensions.height
-     });
-     
-     return viewport.project(selectedArc.popupPosition);
-  }, [selectedArc, viewState, dimensions]);
+     // Project the [lng, lat] to pixel coordinates [x, y]
+     // mapLibre.project() handles terrain, globe, etc.
+     const point = mapRef.current.project(selectedArc.popupPosition as [number, number]);
+     return [point.x, point.y];
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedArc, viewState]);
 
   const handleReadMore = () => {
+    // ... (keep handleReadMore same) ...
     if (!selectedArc || !arrowTable) return;
     
     // Fetch article details using the stored index
@@ -378,59 +402,27 @@ export function MapView() {
 
   return (
     <div 
-      ref={containerRef}
       className="relative h-full w-full" 
       onContextMenu={(e) => e.preventDefault()}
     >
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={handleViewStateChange}
-        controller={{
-            doubleClickZoom: true,
-            touchRotate: true,
-            dragRotate: true,
-            keyboard: true,
-            dragPan: true,
-        }}
-        layers={layers}
-        onError={(error) => {
-          if (error.message?.includes('maxTextureDimension2D')) return;
-          console.error('Deck.gl error:', error);
-        }}
-        getTooltip={(info: any) => {
-          if (info.index < 0 || !arrowTable) return null;
-          // Don't show tooltip for arc layer (as we have a click popup)
-          if (info.layer?.id === 'arc-layer') {
-             return {
-               text: "Click for options",
-               style: {
-                  backgroundColor: 'white',
-                  color: 'black',
-                  fontSize: '11px',
-                  padding: '4px',
-                  borderRadius: '4px'
-               }
-             };
-          }
-          // ... existing point tooltip logic ...
-          return null;
-        }}
+      <Map
+        ref={mapRef}
+        initialViewState={INITIAL_VIEW_STATE}
+        onMove={handleViewStateChange}
+        mapStyle={
+          resolvedTheme === 'dark'
+            ? MAP_STYLES.dark
+            : MAP_STYLES.light
+        }
+        style={{ width: '100%', height: '100%' }}
       >
-        <Map
-          mapStyle={
-            resolvedTheme === 'dark'
-              ? MAP_STYLES.dark
-              : MAP_STYLES.light
-          }
-          style={{ width: '100%', height: '100%' }}
-        >
-        </Map>
-      </DeckGL>
+        <DeckGLOverlay layers={layers} interleaved={true} />
+      </Map>
       
       {/* Custom Popup Overlay */}
       {selectedArc && popupPixel && (
         <div 
-            className="absolute z-[100] bg-background border rounded-md shadow-lg p-2 min-w-[200px] flex flex-col gap-2 pointer-events-auto"
+            className="absolute z-100 bg-background border rounded-md shadow-lg p-2 min-w-[200px] flex flex-col gap-2 pointer-events-auto"
             style={{
                 left: popupPixel[0],
                 top: popupPixel[1],
@@ -464,16 +456,14 @@ export function MapView() {
                    selectEvent(selectedArc.eventId);
                 }
                 const randomBearing = (Math.random() * 60) - 30;
-                setViewState(prev => ({
-                  ...prev,
-                  longitude: selectedArc.sourcePosition[0],
-                  latitude: selectedArc.sourcePosition[1],
-                  zoom: 12,
-                  pitch: 50,
-                  bearing: randomBearing, 
-                  transitionDuration: 'auto',
-                  transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
-                } as any));
+                mapRef.current?.flyTo({
+                   center: [selectedArc.sourcePosition[0], selectedArc.sourcePosition[1]],
+                   zoom: 12,
+                   pitch: 50,
+                   bearing: randomBearing,
+                   speed: 1.5,
+                   curve: 1.8
+                });
                 setSelectedArc(null);
               }}
             >
@@ -495,16 +485,14 @@ export function MapView() {
                    selectEvent(selectedArc.eventId);
                 }
                 const randomBearing = (Math.random() * 60) - 30;
-                setViewState(prev => ({
-                  ...prev,
-                  longitude: selectedArc.targetPosition[0],
-                  latitude: selectedArc.targetPosition[1],
-                  zoom: 12,
-                  pitch: 50,
-                  bearing: randomBearing, 
-                  transitionDuration: 'auto',
-                  transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
-                } as any));
+                mapRef.current?.flyTo({
+                   center: [selectedArc.targetPosition[0], selectedArc.targetPosition[1]],
+                   zoom: 12,
+                   pitch: 50,
+                   bearing: randomBearing,
+                   speed: 1.5,
+                   curve: 1.8
+                });
                 setSelectedArc(null);
               }}
             >
@@ -545,11 +533,7 @@ export function MapView() {
             variant="ghost" 
             size="icon"
             className="h-8 w-8 rounded-none rounded-t-md border-b hover:bg-accent"
-            onClick={() => setViewState(v => ({
-              ...v,
-              zoom: (v.zoom || 0) + 1,
-              transitionDuration: 300
-            }))}
+            onClick={() => mapRef.current?.zoomIn()}
             aria-label="Zoom In"
           >
             <Plus className="h-4 w-4" />
@@ -558,11 +542,7 @@ export function MapView() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-none rounded-b-md hover:bg-accent"
-            onClick={() => setViewState(v => ({
-              ...v,
-              zoom: (v.zoom || 0) - 1,
-              transitionDuration: 300
-            }))}
+            onClick={() => mapRef.current?.zoomOut()}
             aria-label="Zoom Out"
           >
             <Minus className="h-4 w-4" />
@@ -573,18 +553,27 @@ export function MapView() {
           variant="outline"
           size="icon"
           className="h-8 w-8 bg-background/90 shadow-lg backdrop-blur"
-          onClick={() => setViewState(v => ({
-            ...v,
-            bearing: 0,
-            pitch: 0,
-            transitionDuration: 500
-          }))}
+          onClick={() => mapRef.current?.flyTo({
+             bearing: 0,
+             pitch: 0,
+             duration: 500
+          })}
           aria-label="Reset North"
         >
           <Compass 
             className="h-4 w-4 transition-transform duration-500" 
             style={{ transform: `rotate(${-viewState.bearing}deg)` }} 
           />
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          className={`h-8 w-8 bg-background/90 shadow-lg backdrop-blur ${isGlobe ? 'bg-accent/50 border-primary' : ''}`}
+          onClick={toggleGlobe}
+          aria-label="Toggle Globe"
+        >
+          <Globe className="h-4 w-4" />
         </Button>
       </div>
 
@@ -651,4 +640,5 @@ export function MapView() {
     </div>
   );
 }
+
 
