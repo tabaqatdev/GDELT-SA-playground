@@ -35,19 +35,48 @@ export function TimeRangeSlider() {
     sqlDateToDayIndex(filters.timeRange.end, effectiveMinDate),
   ]);
 
+  // Sync effect: When real data range loads, update filters if they are currently default or invalid
+  useEffect(() => {
+    if (!dateRangeLoading && minDate && maxDate) {
+      const DEFAULT_START = 20250119;
+      const DEFAULT_END = 20260127;
+      
+      const isDefault = filters.timeRange.start === DEFAULT_START && filters.timeRange.end === DEFAULT_END;
+      const isOutOfBounds = filters.timeRange.start < minDate || filters.timeRange.end > maxDate;
+      const isReversed = filters.timeRange.start > filters.timeRange.end;
+
+      if (isDefault || isOutOfBounds || isReversed) {
+        console.log('Syncing time range to data:', minDate, maxDate);
+        updateTimeRange({ start: minDate, end: maxDate });
+        setLocalRange([0, sqlDateToDayIndex(maxDate, minDate)]);
+      } else {
+        // Even if we don't change the filter, we MUST re-calculate localRange 
+        // because effectiveMinDate has changed from fallback to real minDate.
+        // The current localRange (day indices) was calculated against the fallback date.
+        setLocalRange([
+            sqlDateToDayIndex(filters.timeRange.start, minDate),
+            sqlDateToDayIndex(filters.timeRange.end, minDate)
+        ]);
+      }
+    }
+  }, [minDate, maxDate, dateRangeLoading, updateTimeRange]); // Removed filters.timeRange to avoid loops, explicit checks inside
+
   // Debounce: only update filters after user stops sliding
   useEffect(() => {
     const timer = setTimeout(() => {
-      const startSQL = dayIndexToSQLDate(localRange[0]!, effectiveMinDate);
-      const endSQL = dayIndexToSQLDate(localRange[1]!, effectiveMinDate);
+      // Guard against NaN
+      if (!localRange || typeof localRange[0] !== 'number' || typeof localRange[1] !== 'number') return;
 
-      if (startSQL !== filters.timeRange.start || endSQL !== filters.timeRange.end) {
+      const startSQL = dayIndexToSQLDate(localRange[0], effectiveMinDate);
+      const endSQL = dayIndexToSQLDate(localRange[1], effectiveMinDate);
+
+      if (startSQL && endSQL && (startSQL !== filters.timeRange.start || endSQL !== filters.timeRange.end)) {
         updateTimeRange({ start: startSQL, end: endSQL });
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [localRange, filters.timeRange, updateTimeRange, effectiveMinDate]);
+  }, [localRange, effectiveMinDate, updateTimeRange]); // removed filters.timeRange to break loop dependency
 
   const startDate = sqlDateToDate(dayIndexToSQLDate(localRange[0]!, effectiveMinDate));
   const endDate = sqlDateToDate(dayIndexToSQLDate(localRange[1]!, effectiveMinDate));
