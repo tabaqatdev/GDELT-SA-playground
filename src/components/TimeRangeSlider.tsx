@@ -4,6 +4,7 @@ import { useAppState } from '@/context/app-state-context';
 import { useTranslation, useLanguage } from '@/context/i18n-context';
 import { useDateRange } from '@/hooks/use-date-range';
 import { sqlDateToDate, dateToSQLDate, formatDate } from '@/lib/utils';
+import { CalendarClock, Minimize2 } from 'lucide-react';
 
 // Convert SQL date to day index
 function sqlDateToDayIndex(sqlDate: number, minDate: number): number {
@@ -24,6 +25,11 @@ export function TimeRangeSlider() {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const { minDate, maxDate, loading: dateRangeLoading } = useDateRange();
+  
+  // Default to collapsed on mobile (screen width < 640px)
+  // We initialize state lazily to avoid hydration mismatch if we were doing SSR, 
+  // but since this is a SPA, simple matching is fine, explicitly controlled by user mainly.
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Use fallback dates while loading or if query fails
   const effectiveMinDate = minDate || 20250119;
@@ -85,11 +91,25 @@ export function TimeRangeSlider() {
     return null; // Or a skeleton loader
   }
 
+  if (isCollapsed) {
+    return (
+      <button
+        onClick={() => setIsCollapsed(false)}
+        className="absolute bottom-4 sm:bottom-20 left-4 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-background border shadow-lg hover:bg-muted transition-all hover:scale-105"
+        aria-label="Expand time slider"
+      >
+        <CalendarClock className="h-6 w-6 text-primary" />
+      </button>
+    );
+  }
+
   return (
     <div className="absolute bottom-4 sm:bottom-20 left-2 right-2 sm:left-4 sm:right-auto sm:w-full sm:max-w-3xl z-10 rounded-lg border bg-background/95 p-3 sm:p-6 shadow-2xl backdrop-blur supports-backdrop-filter:bg-background/90 rtl:sm:left-auto rtl:sm:right-4">
       <div className="mb-3 sm:mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <h3 className="text-xs sm:text-sm font-semibold">{t('timeline.title')}</h3>
-        <div className="flex gap-1 sm:gap-2 text-xs flex-wrap">
+        <h3 className="text-xs sm:text-sm font-semibold flex items-center gap-2">
+          {t('timeline.title')}
+        </h3>
+        <div className="flex gap-1 sm:gap-2 text-xs flex-wrap items-center">
           <button
             onClick={() => setLocalRange([maxDayIndex - 7, maxDayIndex])}
             className="rounded bg-secondary px-2 py-1 hover:bg-secondary/80 whitespace-nowrap"
@@ -107,6 +127,13 @@ export function TimeRangeSlider() {
             className="rounded bg-secondary px-2 py-1 hover:bg-secondary/80 whitespace-nowrap"
           >
             {t('timeline.presets.all')}
+          </button>
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="ml-2 rounded-full p-1 hover:bg-muted transition-colors"
+            aria-label="Minimize time slider"
+          >
+            <Minimize2 className="h-4 w-4" />
           </button>
         </div>
       </div>
