@@ -1864,8 +1864,8 @@ packages:
   '@webcomponents/shadycss@1.11.2':
     resolution: {integrity: sha512-vRq+GniJAYSBmTRnhCYPAPq6THYqovJ/gzGThWbgEZUQaBccndGTi1hdiUP15HzEco0I6t4RCtXyX0rsSmwgPw==}
 
-  '@zip.js/zip.js@2.8.15':
-    resolution: {integrity: sha512-HZKJLFe4eGVgCe9J87PnijY7T1Zn638bEHS+Fm/ygHZozRpefzWcOYfPaP52S8pqk9g4xN3+LzMDl3Lv9dLglA==}
+  '@zip.js/zip.js@2.8.16':
+    resolution: {integrity: sha512-kCjaXh50GCf9afcof6ekjXPKR//rBVIxNHJLSUaM3VAET2F0+hymgrK1GpInRIIFUpt+wsnUfgx2+bbrmc+7Tw==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
   a5-js@0.5.0:
@@ -3578,7 +3578,7 @@ snapshots:
       '@esri/arcgis-html-sanitizer': 4.1.0
       '@esri/calcite-components': 3.3.3
       '@vaadin/grid': 24.9.10
-      '@zip.js/zip.js': 2.8.15
+      '@zip.js/zip.js': 2.8.16
       luxon: 3.7.2
       marked: 16.3.0
       tslib: 2.8.1
@@ -5516,7 +5516,7 @@ snapshots:
 
   '@webcomponents/shadycss@1.11.2': {}
 
-  '@zip.js/zip.js@2.8.15': {}
+  '@zip.js/zip.js@2.8.16': {}
 
   a5-js@0.5.0:
     dependencies:

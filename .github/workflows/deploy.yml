@@ -52,7 +52,9 @@ jobs:
         env:
           # Base path for GitHub Pages (repo name)
           # If using a custom domain later, change this to "/"
-          VITE_BASE_PATH: '/GDELT-SA-playground/'
+          VITE_BASE_PATH: '/'
+          VITE_PUBLIC_POSTHOG_KEY: ${{ secrets.VITE_PUBLIC_POSTHOG_KEY }}
+          VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

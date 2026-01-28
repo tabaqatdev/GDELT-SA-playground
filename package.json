@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "GDELT Saudi Arabia News Panel - Browser-based news analysis with DuckDB-WASM",
-  "homepage": "https://tabaqatdev.github.io/GDELT-SA-playground/",
+  "homepage": "https://geonews.tabaqat.dev/",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
