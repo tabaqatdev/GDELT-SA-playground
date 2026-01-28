@@ -1,0 +1,84 @@
+{
+  "header": {
+    "title": "Saudi Arabia News",
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "toggle": "Toggle theme"
+    },
+    "language": {
+      "en": "English",
+      "ar": "Arabic",
+      "toggle": "Switch language"
+    }
+  },
+  "map": {
+    "title": "Event Map",
+    "loading": "Loading map...",
+    "error": "Failed to load map",
+    "flyTo": "Fly to...",
+    "source": "Source",
+    "target": "Target",
+    "tooltip": {
+      "title": "Title",
+      "sentiment": "Sentiment",
+      "date": "Date",
+      "location": "Location"
+    }
+  },
+  "timeline": {
+    "title": "Time Range",
+    "start": "Start Date",
+    "end": "End Date",
+    "presets": {
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "all": "All time"
+    }
+  },
+  "news": {
+    "title": "News Articles",
+    "loading": "Loading articles...",
+    "error": "Failed to load articles",
+    "empty": "No articles found",
+    "sentiment": "Sentiment",
+    "date": "Date",
+    "source": "Source",
+    "author": "Author",
+    "readMore": "Read more",
+    "article": "article",
+    "articles": "articles"
+  },
+  "filters": {
+    "title": "Filters",
+    "sentiment": {
+      "title": "Sentiment",
+      "positive": "Positive",
+      "neutral": "Neutral",
+      "negative": "Negative"
+    },
+    "eventType": {
+      "title": "Event Type",
+      "cooperation": "Cooperation",
+      "verbalConflict": "Verbal Conflict",
+      "veiledConflict": "Veiled Conflict",
+      "overtConflict": "Overt Conflict"
+    },
+    "country": {
+      "title": "Country",
+      "all": "All Countries"
+    },
+    "search": {
+      "title": "Search",
+      "placeholder": "Search articles..."
+    },
+    "clear": "Clear all filters"
+  },
+  "stats": {
+    "title": "Statistics",
+    "totalEvents": "Total Events",
+    "avgSentiment": "Avg Sentiment",
+    "topCountries": "Top Countries",
+    "eventDistribution": "Event Distribution"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "header": {
+    "title": "أخبار السعودية",
+    "theme": {
+      "light": "فاتح",
+      "dark": "داكن",
+      "toggle": "تبديل المظهر"
+    },
+    "language": {
+      "en": "English",
+      "ar": "العربية",
+      "toggle": "تغيير اللغة"
+    }
+  },
+  "map": {
+    "title": "خريطة الأحداث",
+    "loading": "جاري تحميل الخريطة...",
+    "error": "فشل تحميل الخريطة",
+    "flyTo": "انتقل إلى...",
+    "source": "المصدر",
+    "target": "الهدف",
+    "tooltip": {
+      "title": "العنوان",
+      "sentiment": "المشاعر",
+      "date": "التاريخ",
+      "location": "الموقع"
+    }
+  },
+  "timeline": {
+    "title": "النطاق الزمني",
+    "start": "تاريخ البدء",
+    "end": "تاريخ الانتهاء",
+    "presets": {
+      "last7": "آخر ٧ أيام",
+      "last30": "آخر ٣٠ يوم",
+      "all": "كل الوقت"
+    }
+  },
+  "news": {
+    "title": "المقالات الإخبارية",
+    "loading": "جاري تحميل المقالات...",
+    "error": "فشل تحميل المقالات",
+    "empty": "لم يتم العثور على مقالات",
+    "sentiment": "المشاعر",
+    "date": "التاريخ",
+    "source": "المصدر",
+    "author": "الكاتب",
+    "readMore": "اقرأ المزيد",
+    "article": "مقال",
+    "articles": "مقال"
+  },
+  "filters": {
+    "title": "التصفية",
+    "sentiment": {
+      "title": "المشاعر",
+      "positive": "إيجابي",
+      "neutral": "محايد",
+      "negative": "سلبي"
+    },
+    "eventType": {
+      "title": "نوع الحدث",
+      "cooperation": "تعاون",
+      "verbalConflict": "صراع لفظي",
+      "veiledConflict": "صراع مستتر",
+      "overtConflict": "صراع علني"
+    },
+    "country": {
+      "title": "الدولة",
+      "all": "كل الدول"
+    },
+    "search": {
+      "title": "البحث",
+      "placeholder": "ابحث في المقالات..."
+    },
+    "clear": "مسح كل التصفيات"
+  },
+  "stats": {
+    "title": "الإحصائيات",
+    "totalEvents": "إجمالي الأحداث",
+    "avgSentiment": "متوسط المشاعر",
+    "topCountries": "أعلى الدول",
+    "eventDistribution": "توزيع الأحداث"
+  }
+}
