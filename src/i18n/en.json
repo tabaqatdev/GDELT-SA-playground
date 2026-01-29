@@ -12,6 +12,9 @@
       "toggle": "Switch language"
     }
   },
+  "common": {
+    "close": "Close"
+  },
   "map": {
     "title": "Event Map",
     "loading": "Loading map...",

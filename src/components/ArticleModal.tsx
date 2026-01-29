@@ -39,7 +39,7 @@ export function ArticleModal({ isOpen, onClose, article }: ArticleModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div 
+      <div
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-background shadow-2xl animate-in zoom-in-95 duration-200 border"
         onClick={(e) => e.stopPropagation()}
       >
@@ -50,8 +50,10 @@ export function ArticleModal({ isOpen, onClose, article }: ArticleModalProps) {
               {article.title}
             </h2>
             <div className="mt-2 flex items-center gap-2">
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium sentiment-${sentimentCategory} bg-accent`}>
-                 {t('news.sentiment')}: {article.sentiment.toFixed(2)}
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium sentiment-${sentimentCategory} bg-accent`}
+              >
+                {t('news.sentiment')}: {article.sentiment.toFixed(2)}
               </span>
               {article.location && (
                 <span className="text-xs text-muted-foreground bg-accent px-2 py-0.5 rounded-full">
@@ -67,7 +69,7 @@ export function ArticleModal({ isOpen, onClose, article }: ArticleModalProps) {
             onClick={onClose}
           >
             <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{t('common.close')}</span>
           </Button>
         </div>
 
@@ -94,21 +96,31 @@ export function ArticleModal({ isOpen, onClose, article }: ArticleModalProps) {
           </div>
 
           <div className="prose prose-sm sm:prose-base dark:prose-invert max-w-none leading-relaxed">
-             {/* Simple paragraph handling for now, can be improved */}
-             {article.content.split('\n').map((paragraph, idx) => (
-                paragraph.trim() && <p key={idx} className="mb-4 text-foreground/90">{paragraph}</p>
-             ))}
+            {/* Simple paragraph handling for now, can be improved */}
+            {article.content.split('\n').map(
+              (paragraph, idx) =>
+                paragraph.trim() && (
+                  <p key={idx} className="mb-4 text-foreground/90">
+                    {paragraph}
+                  </p>
+                )
+            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="sticky bottom-0 border-t bg-background/95 p-4 backdrop-blur flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
-            Close
+            {t('common.close')}
           </Button>
           {article.url && (
             <Button asChild>
-              <a href={article.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2"
+              >
                 {t('news.readMore')} <ExternalLink className="h-4 w-4" />
               </a>
             </Button>
