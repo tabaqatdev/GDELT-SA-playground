@@ -3,7 +3,7 @@ import Map, { ViewState } from 'react-map-gl/maplibre';
 import maplibregl from 'maplibre-gl';
 import { DeckGL } from '@deck.gl/react';
 import { ScatterplotLayer, ArcLayer } from '@deck.gl/layers';
-import { WebMercatorViewport, FlyToInterpolator } from '@deck.gl/core';
+import { WebMercatorViewport, FlyToInterpolator, PickingInfo } from '@deck.gl/core';
 import { useAppState } from '@/context/app-state-context';
 import { useEvents } from '@/hooks/use-events';
 import { useTheme } from '@/hooks/use-theme';
@@ -24,12 +24,12 @@ const INITIAL_VIEW_STATE: ViewState = {
 
 // RTL text plugin URL
 const RTL_PLUGIN_URL =
-  "https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js";
+  'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.3.0/dist/mapbox-gl-rtl-text.js';
 
 // Map styles for light and dark mode
 const MAP_STYLES = {
-  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+  dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 };
 
 type LayerMode = 'action' | 'actor1' | 'actor2' | 'arcs' | 'all';
@@ -43,7 +43,7 @@ export function MapView() {
   const { arrowTable, loading } = useEvents();
   const { resolvedTheme } = useTheme();
   const { t } = useTranslation();
-  
+
   // Last FlyTo event ref to preventing loops
   const lastFlyToEventRef = useRef<string | null>(null);
 
@@ -78,12 +78,12 @@ export function MapView() {
       );
     }
   }, []);
-  
+
   // Layer Modes Configuration
   const layerModes = [
     { value: 'action' as LayerMode, label: 'Points', color: 'bg-red-500' },
     { value: 'arcs' as LayerMode, label: 'Connections', color: 'bg-blue-500' },
-    { value: 'all' as LayerMode, label: 'All Layers', color: 'bg-gray-500' }
+    { value: 'all' as LayerMode, label: 'All Layers', color: 'bg-gray-500' },
   ];
 
   // Helper to toggle layers
@@ -92,7 +92,7 @@ export function MapView() {
     if (mode === 'all') {
       if (newLayers.has('all')) {
         newLayers.clear();
-        newLayers.add('arcs'); 
+        newLayers.add('arcs');
       } else {
         newLayers.clear();
         newLayers.add('all');
@@ -107,16 +107,35 @@ export function MapView() {
     }
     setActiveLayers(newLayers);
   };
-  
+
   const eventCount = arrowTable ? arrowTable.numRows : 0;
+
+  const lastProcessedEventIdRef = useRef<string | null>(null);
 
   // Update view state when selected event changes (Auto-Fly)
   useEffect(() => {
+    // Note: We intentionally do NOT reset lastProcessedEventIdRef to null when selectedEventId is null.
+    // This prevents "flickering" (null -> ID) from re-triggering the fly animation if the ID was already processed.
+    // The trade-off is that deselecting and re-selecting the SAME event won't auto-fly, but users can use manual controls.
+
     if (selectedEventId && arrowTable && isMapSyncEnabled) {
-      // If we just manually flew to this event, SKIP the auto-fly
+      console.log('Auto-Fly Check:', {
+        selected: selectedEventId,
+        lastProcessed: lastProcessedEventIdRef.current,
+        manual: lastFlyToEventRef.current,
+      });
+
+      // KEY FIX: If we have already processed this event ID (flown to it), do NOT fly again
+      // even if arrowTable updates (which happens on pan/zoom).
+      if (lastProcessedEventIdRef.current === selectedEventId) {
+        return;
+      }
+
+      // If we just manually flew to this event (via popup), SKIP the auto-fly
       if (lastFlyToEventRef.current === selectedEventId) {
-         lastFlyToEventRef.current = null; // Reset for next time
-         return;
+        lastProcessedEventIdRef.current = selectedEventId; // Mark as processed
+        lastFlyToEventRef.current = null; // Reset for next time
+        return;
       }
 
       const idCol = arrowTable.getChild('id');
@@ -141,7 +160,11 @@ export function MapView() {
         const lon = lonCol.get(index);
 
         if (lat != null && lon != null) {
-          setViewState(prev => ({
+          console.log('Flying to event:', selectedEventId);
+          // Mark as processed BEFORE setting config to avoid double-triggers
+          lastProcessedEventIdRef.current = selectedEventId;
+
+          setViewState((prev) => ({
             ...prev,
             longitude: lon as number,
             latitude: lat as number,
@@ -149,7 +172,7 @@ export function MapView() {
             pitch: 50,
             transitionDuration: 2000,
             // Standard flyTo for list selection can remain simple or use the same dramatic effect
-            transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
+            transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 }),
           }));
         }
       }
@@ -159,10 +182,10 @@ export function MapView() {
   // DeckGL Layers
   const layers = useMemo(() => {
     if (loading || !arrowTable) return [];
-    
+
     // We use a proxy object for data to avoid copying the entire arrow table
     const wrappedData = { length: arrowTable.numRows };
-    
+
     // Get columns once
     const latCol = arrowTable.getChild('lat');
     const lonCol = arrowTable.getChild('lon');
@@ -198,30 +221,29 @@ export function MapView() {
             return [lon as number, lat as number];
           },
           getFillColor: (_: any, { index }: { index: number }) => {
-             const sentiment = sentimentCol.get(index) as number;
-             // Color scale based on sentiment: Red (neg) -> Grey -> Green (pos)
-             if (sentiment < -5) return [239, 68, 68, 200]; // Red-500
-             if (sentiment > 5) return [34, 197, 94, 200];  // Green-500
-             return [156, 163, 175, 200]; // Gray-400
+            const sentiment = sentimentCol.get(index) as number;
+            // Color scale based on sentiment: Red (neg) -> Grey -> Green (pos)
+            if (sentiment < -5) return [239, 68, 68, 200]; // Red-500
+            if (sentiment > 5) return [34, 197, 94, 200]; // Green-500
+            return [156, 163, 175, 200]; // Gray-400
           },
           getLineColor: [0, 0, 0, 80],
-          onClick: (info: any) => {
-             if (info.index >= 0 && idCol) {
-               const id = idCol.get(info.index);
-               if (id) selectEvent(id as string);
-             }
+          onClick: (info: PickingInfo) => {
+            if (info.index >= 0 && idCol) {
+              const id = idCol.get(info.index);
+              if (id) selectEvent(id as string);
+            }
           },
           updateTriggers: {
-             getFillColor: [arrowTable] // Update if table changes
-          }
+            getFillColor: [arrowTable], // Update if table changes
+          },
         })
       );
     }
 
     // 2. Arc Layer - Connections between Actor1 and Actor2
     // Only show if we have valid coordinates for both actors
-    if (activeLayers.has('arcs') &&
-        actor1LatCol && actor1LonCol && actor2LatCol && actor2LonCol) {
+    if (activeLayers.has('arcs') && actor1LatCol && actor1LonCol && actor2LatCol && actor2LonCol) {
       allLayers.push(
         new ArcLayer({
           id: 'arc-layer',
@@ -248,30 +270,43 @@ export function MapView() {
           getTargetColor: [168, 85, 247, 200], // Purple (Actor 2)
           getHeight: 0.3,
           greatCircle: true,
-          onClick: (info: any) => {
-            if (info.index >= 0 && idCol && actor1LatCol && actor1LonCol && actor2LatCol && actor2LonCol) {
+          onClick: (info: PickingInfo) => {
+            if (
+              info.index >= 0 &&
+              idCol &&
+              actor1LatCol &&
+              actor1LonCol &&
+              actor2LatCol &&
+              actor2LonCol
+            ) {
               const index = info.index;
               const sourceLat = actor1LatCol.get(index) as number;
               const sourceLon = actor1LonCol.get(index) as number;
               const targetLat = actor2LatCol.get(index) as number;
               const targetLon = actor2LonCol.get(index) as number;
-              
+
               const actor1NameCol = arrowTable?.getChild('actor1');
               const actor2NameCol = arrowTable?.getChild('actor2');
-              
+
               const sourceName = actor1NameCol?.get(index) as string | null;
               const targetName = actor2NameCol?.get(index) as string | null;
 
-              if (sourceLat != null && sourceLon != null && targetLat != null && targetLon != null) {
+              if (
+                sourceLat != null &&
+                sourceLon != null &&
+                targetLat != null &&
+                targetLon != null &&
+                info.coordinate
+              ) {
                 const id = idCol.get(index) as string;
                 setSelectedArc({
                   sourcePosition: [sourceLon, sourceLat],
                   targetPosition: [targetLon, targetLat],
                   sourceName: sourceName || 'Actor 1',
                   targetName: targetName || 'Actor 2',
-                  popupPosition: info.coordinate,
+                  popupPosition: info.coordinate as [number, number],
                   eventId: id,
-                  index: index
+                  index: index,
                 });
               }
             }
@@ -289,7 +324,7 @@ export function MapView() {
   const handleViewStateChange = useCallback(
     ({ viewState: newViewState }: any) => {
       setViewState(newViewState);
-      
+
       if (!isMapSyncEnabled) return;
 
       // Clear existing timeout
@@ -306,14 +341,14 @@ export function MapView() {
             west: bounds[0],
             south: bounds[1],
             east: bounds[2],
-            north: bounds[3]
+            north: bounds[3],
           });
         }
-      }, 500); 
+      }, 500);
     },
     [updateBBox, isMapSyncEnabled]
   );
-  
+
   // Ref for container dimensions
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -322,10 +357,10 @@ export function MapView() {
     if (containerRef.current) {
       const { offsetWidth, offsetHeight } = containerRef.current;
       setDimensions({ width: offsetWidth, height: offsetHeight });
-      
-      const observer = new ResizeObserver(entries => {
+
+      const observer = new ResizeObserver((entries) => {
         for (const entry of entries) {
-           setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
+          setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
         }
       });
       observer.observe(containerRef.current);
@@ -335,23 +370,23 @@ export function MapView() {
 
   // Calculate Popup Screen Position
   const popupPixel = useMemo(() => {
-     if (!selectedArc || dimensions.width === 0 || dimensions.height === 0) return null;
-     
-     const viewport = new WebMercatorViewport({
-        ...viewState,
-        width: dimensions.width,
-        height: dimensions.height
-     });
-     
-     return viewport.project(selectedArc.popupPosition);
+    if (!selectedArc || dimensions.width === 0 || dimensions.height === 0) return null;
+
+    const viewport = new WebMercatorViewport({
+      ...viewState,
+      width: dimensions.width,
+      height: dimensions.height,
+    });
+
+    return viewport.project(selectedArc.popupPosition);
   }, [selectedArc, viewState, dimensions]);
 
   const handleReadMore = () => {
     if (!selectedArc || !arrowTable) return;
-    
+
     // Fetch article details using the stored index
     const index = selectedArc.index;
-    
+
     const titleCol = arrowTable.getChild('title');
     const contentCol = arrowTable.getChild('content');
     const authorCol = arrowTable.getChild('author');
@@ -361,175 +396,181 @@ export function MapView() {
     const locationCol = arrowTable.getChild('location');
 
     if (titleCol && contentCol && dateCol && sentimentCol) {
-       setModalArticle({
-          title: titleCol.get(index) as string,
-          content: contentCol.get(index) as string,
-          author: authorCol?.get(index) as string | null,
-          date: dateCol.get(index) as number,
-          url: urlCol?.get(index) as string | null,
-          sentiment: sentimentCol.get(index) as number,
-          location: locationCol?.get(index) as string | null
-       });
-       // Optionally close the map popup? User might want to keep context.
-       // Let's close it to avoid clutter.
-       setSelectedArc(null);
+      setModalArticle({
+        title: titleCol.get(index) as string,
+        content: contentCol.get(index) as string,
+        author: authorCol?.get(index) as string | null,
+        date: dateCol.get(index) as number,
+        url: urlCol?.get(index) as string | null,
+        sentiment: sentimentCol.get(index) as number,
+        location: locationCol?.get(index) as string | null,
+      });
+      // Optionally close the map popup? User might want to keep context.
+      // Let's close it to avoid clutter.
+      setSelectedArc(null);
     }
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="relative h-full w-full" 
+      className="relative h-full w-full"
       onContextMenu={(e) => e.preventDefault()}
     >
       <DeckGL
         viewState={viewState}
         onViewStateChange={handleViewStateChange}
         controller={{
-            doubleClickZoom: true,
-            touchRotate: true,
-            dragRotate: true,
-            keyboard: true,
-            dragPan: true,
+          doubleClickZoom: true,
+          touchRotate: true,
+          dragRotate: true,
+          keyboard: true,
+          dragPan: true,
         }}
         layers={layers}
         onError={(error) => {
           if (error.message?.includes('maxTextureDimension2D')) return;
           console.error('Deck.gl error:', error);
         }}
-        getTooltip={(info: any) => {
+        getTooltip={(info: PickingInfo) => {
           if (info.index < 0 || !arrowTable) return null;
           // Don't show tooltip for arc layer (as we have a click popup)
           if (info.layer?.id === 'arc-layer') {
-             return {
-               text: "Click for options",
-               style: {
-                  backgroundColor: 'white',
-                  color: 'black',
-                  fontSize: '11px',
-                  padding: '4px',
-                  borderRadius: '4px'
-               }
-             };
+            return {
+              text: 'Click for options',
+              style: {
+                backgroundColor: 'white',
+                color: 'black',
+                fontSize: '11px',
+                padding: '4px',
+                borderRadius: '4px',
+              },
+            };
           }
           // ... existing point tooltip logic ...
           return null;
         }}
       >
         <Map
-          mapStyle={
-            resolvedTheme === 'dark'
-              ? MAP_STYLES.dark
-              : MAP_STYLES.light
-          }
+          mapStyle={resolvedTheme === 'dark' ? MAP_STYLES.dark : MAP_STYLES.light}
           style={{ width: '100%', height: '100%' }}
-        >
-        </Map>
+        ></Map>
       </DeckGL>
-      
+
       {/* Custom Popup Overlay */}
       {selectedArc && popupPixel && (
-        <div 
-            className="absolute z-[100] bg-background border rounded-md shadow-lg p-2 min-w-[200px] flex flex-col gap-2 pointer-events-auto"
-            style={{
-                left: popupPixel[0],
-                top: popupPixel[1],
-                transform: 'translate(-50%, -100%)',
-                marginTop: '-10px' 
-            }}
-            onClick={(e) => e.stopPropagation()}
+        <div
+          className="absolute bg-background border rounded-md shadow-lg p-2 min-w-[200px] flex flex-col gap-2 pointer-events-auto"
+          style={{
+            zIndex: 100,
+            left: popupPixel[0],
+            top: popupPixel[1],
+            transform: 'translate(-50%, -100%)',
+            marginTop: '-10px',
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex items-center justify-between mb-1 border-b pb-1">
-                <span className="font-semibold text-sm">{t('map.flyTo')}</span>
-                <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedArc(null);
-                    }}
-                    className="p-1 hover:bg-muted rounded-full"
-                >
-                    <X className="h-3 w-3" />
-                </button>
-            </div>
-            
-            {/* Fly to Source */}
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="w-full justify-start text-left h-auto py-2 px-3 text-xs"
+          <div className="flex items-center justify-between mb-1 border-b pb-1">
+            <span className="font-semibold text-sm">{t('map.flyTo')}</span>
+            <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (selectedArc.eventId) {
-                   lastFlyToEventRef.current = selectedArc.eventId;
-                   selectEvent(selectedArc.eventId);
-                }
-                const randomBearing = (Math.random() * 60) - 30;
-                setViewState(prev => ({
-                  ...prev,
-                  longitude: selectedArc.sourcePosition[0],
-                  latitude: selectedArc.sourcePosition[1],
-                  zoom: 12,
-                  pitch: 50,
-                  bearing: randomBearing, 
-                  transitionDuration: 'auto',
-                  transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
-                } as any));
                 setSelectedArc(null);
               }}
+              className="p-1 hover:bg-muted rounded-full"
             >
-              <div className="flex flex-col items-start truncate w-full">
-                <span className="font-medium text-blue-600 truncate w-full">{selectedArc.sourceName}</span>
-                <span className="text-[10px] text-muted-foreground">{t('map.source')}</span>
-              </div>
-            </Button>
+              <X className="h-3 w-3" />
+            </button>
+          </div>
 
-            {/* Fly to Target */}
-            <Button 
-              size="sm" 
-              variant="outline" 
-              className="w-full justify-start text-left h-auto py-2 px-3 text-xs"
+          {/* Fly to Source */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full justify-start text-left h-auto py-2 px-3 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedArc.eventId) {
+                lastFlyToEventRef.current = selectedArc.eventId;
+                selectEvent(selectedArc.eventId);
+              }
+              const randomBearing = Math.random() * 60 - 30;
+              setViewState(
+                (prev) =>
+                  ({
+                    ...prev,
+                    longitude: selectedArc.sourcePosition[0],
+                    latitude: selectedArc.sourcePosition[1],
+                    zoom: 12,
+                    pitch: 50,
+                    bearing: randomBearing,
+                    transitionDuration: 'auto',
+                    transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 }),
+                  }) as any
+              );
+              setSelectedArc(null);
+            }}
+          >
+            <div className="flex flex-col items-start truncate w-full">
+              <span className="font-medium text-blue-600 truncate w-full">
+                {selectedArc.sourceName}
+              </span>
+              <span className="text-[10px] text-muted-foreground">{t('map.source')}</span>
+            </div>
+          </Button>
+
+          {/* Fly to Target */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full justify-start text-left h-auto py-2 px-3 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedArc.eventId) {
+                lastFlyToEventRef.current = selectedArc.eventId;
+                selectEvent(selectedArc.eventId);
+              }
+              const randomBearing = Math.random() * 60 - 30;
+              setViewState(
+                (prev) =>
+                  ({
+                    ...prev,
+                    longitude: selectedArc.targetPosition[0],
+                    latitude: selectedArc.targetPosition[1],
+                    zoom: 12,
+                    pitch: 50,
+                    bearing: randomBearing,
+                    transitionDuration: 'auto',
+                    transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 }),
+                  }) as any
+              );
+              setSelectedArc(null);
+            }}
+          >
+            <div className="flex flex-col items-start truncate w-full">
+              <span className="font-medium text-purple-600 truncate w-full">
+                {selectedArc.targetName}
+              </span>
+              <span className="text-[10px] text-muted-foreground">{t('map.target')}</span>
+            </div>
+          </Button>
+
+          {/* Read More Button */}
+          <div className="pt-1 mt-1 border-t">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full justify-start text-left h-auto py-1.5 px-3 text-xs hover:bg-accent text-primary"
               onClick={(e) => {
                 e.stopPropagation();
-                if (selectedArc.eventId) {
-                   lastFlyToEventRef.current = selectedArc.eventId;
-                   selectEvent(selectedArc.eventId);
-                }
-                const randomBearing = (Math.random() * 60) - 30;
-                setViewState(prev => ({
-                  ...prev,
-                  longitude: selectedArc.targetPosition[0],
-                  latitude: selectedArc.targetPosition[1],
-                  zoom: 12,
-                  pitch: 50,
-                  bearing: randomBearing, 
-                  transitionDuration: 'auto',
-                  transitionInterpolator: new FlyToInterpolator({ speed: 1.5, curve: 1.8 })
-                } as any));
-                setSelectedArc(null);
+                console.log('Opening article modal for index:', selectedArc.index);
+                handleReadMore();
               }}
             >
-              <div className="flex flex-col items-start truncate w-full">
-                 <span className="font-medium text-purple-600 truncate w-full">{selectedArc.targetName}</span>
-                 <span className="text-[10px] text-muted-foreground">{t('map.target')}</span>
-              </div>
+              <BookOpen className="h-3 w-3 mr-2" />
+              {t('news.readMore')}
             </Button>
-            
-            {/* Read More Button */}
-            <div className="pt-1 mt-1 border-t">
-              <Button
-                size="sm"
-                variant="ghost" 
-                className="w-full justify-start text-left h-auto py-1.5 px-3 text-xs hover:bg-accent text-primary"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    console.log('Opening article modal for index:', selectedArc.index);
-                    handleReadMore();
-                }}
-              >
-                 <BookOpen className="h-3 w-3 mr-2" />
-                 {t('news.readMore')}
-              </Button>
-            </div>
+          </div>
         </div>
       )}
 
@@ -542,14 +583,16 @@ export function MapView() {
       <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
         <div className="flex flex-col rounded-md border bg-background/90 shadow-lg backdrop-blur">
           <Button
-            variant="ghost" 
+            variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-none rounded-t-md border-b hover:bg-accent"
-            onClick={() => setViewState(v => ({
-              ...v,
-              zoom: (v.zoom || 0) + 1,
-              transitionDuration: 300
-            }))}
+            onClick={() =>
+              setViewState((v) => ({
+                ...v,
+                zoom: (v.zoom || 0) + 1,
+                transitionDuration: 300,
+              }))
+            }
             aria-label="Zoom In"
           >
             <Plus className="h-4 w-4" />
@@ -558,32 +601,36 @@ export function MapView() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-none rounded-b-md hover:bg-accent"
-            onClick={() => setViewState(v => ({
-              ...v,
-              zoom: (v.zoom || 0) - 1,
-              transitionDuration: 300
-            }))}
+            onClick={() =>
+              setViewState((v) => ({
+                ...v,
+                zoom: (v.zoom || 0) - 1,
+                transitionDuration: 300,
+              }))
+            }
             aria-label="Zoom Out"
           >
             <Minus className="h-4 w-4" />
           </Button>
         </div>
-        
+
         <Button
           variant="outline"
           size="icon"
           className="h-8 w-8 bg-background/90 shadow-lg backdrop-blur"
-          onClick={() => setViewState(v => ({
-            ...v,
-            bearing: 0,
-            pitch: 0,
-            transitionDuration: 500
-          }))}
+          onClick={() =>
+            setViewState((v) => ({
+              ...v,
+              bearing: 0,
+              pitch: 0,
+              transitionDuration: 500,
+            }))
+          }
           aria-label="Reset North"
         >
-          <Compass 
-            className="h-4 w-4 transition-transform duration-500" 
-            style={{ transform: `rotate(${-viewState.bearing}deg)` }} 
+          <Compass
+            className="h-4 w-4 transition-transform duration-500"
+            style={{ transform: `rotate(${-viewState.bearing}deg)` }}
           />
         </Button>
       </div>
@@ -603,7 +650,7 @@ export function MapView() {
           <div className="mt-2 rounded-lg border bg-background/95 p-3 shadow-xl backdrop-blur w-48">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold">Layers</p>
-              <button 
+              <button
                 onClick={() => toggleLayer('all')}
                 className="text-[10px] text-muted-foreground hover:text-primary"
               >
@@ -623,9 +670,11 @@ export function MapView() {
                         : 'hover:bg-accent/50 text-muted-foreground'
                     }`}
                   >
-                    <div className={`h-3 w-3 rounded border flex items-center justify-center ${
-                      isActive ? mode.color + ' border-transparent' : 'border-input'
-                    }`}>
+                    <div
+                      className={`h-3 w-3 rounded border flex items-center justify-center ${
+                        isActive ? mode.color + ' border-transparent' : 'border-input'
+                      }`}
+                    >
                       {isActive && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                     </div>
                     {mode.label}
@@ -642,13 +691,12 @@ export function MapView() {
         <p className="font-semibold">{eventCount} events</p>
         <p className="text-muted-foreground">Active Layers: {activeLayers.size}</p>
       </div>
-      
-      <ArticleModal 
-         isOpen={!!modalArticle}
-         onClose={() => setModalArticle(null)}
-         article={modalArticle}
+
+      <ArticleModal
+        isOpen={!!modalArticle}
+        onClose={() => setModalArticle(null)}
+        article={modalArticle}
       />
     </div>
   );
 }
-
