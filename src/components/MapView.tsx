@@ -307,6 +307,12 @@ export function MapView() {
                 info.coordinate
               ) {
                 const id = idCol.get(index) as string;
+
+                // Select event on click (highlights arc in yellow)
+                // PREVENT auto-fly by marking it as already processed
+                lastProcessedEventIdRef.current = id;
+                selectEvent(id);
+
                 setSelectedArc({
                   sourcePosition: [sourceLon, sourceLat],
                   targetPosition: [targetLon, targetLat],
