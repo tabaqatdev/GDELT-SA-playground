@@ -5,7 +5,7 @@ import { useAppState } from '@/context/app-state-context';
 
 export function useEvents() {
   const { query, initialized, ftsEnabled } = useDuckDB();
-  const { filters } = useAppState();
+  const { filters, selectedEventId } = useAppState();
   const [arrowTable, setArrowTable] = useState<Table | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -22,9 +22,7 @@ export function useEvents() {
         const whereClauses: string[] = [];
 
         // Time range
-        whereClauses.push(
-          `date BETWEEN ${filters.timeRange.start} AND ${filters.timeRange.end}`
-        );
+        whereClauses.push(`date BETWEEN ${filters.timeRange.start} AND ${filters.timeRange.end}`);
 
         // Sentiment filter (done in SQL now)
         const sentimentClauses: string[] = [];
@@ -41,12 +39,29 @@ export function useEvents() {
           whereClauses.push(`(${sentimentClauses.join(' OR ')})`);
         }
 
-        // BBox filter
+        // BBox filter - Enhanced to keep arcs (source/target) and selected event visible
         if (filters.bbox) {
-          whereClauses.push(
-            `lat BETWEEN ${filters.bbox.south} AND ${filters.bbox.north}`,
-            `lon BETWEEN ${filters.bbox.west} AND ${filters.bbox.east}`
-          );
+          const { south, north, west, east } = filters.bbox;
+          // We construct a composite condition:
+          // 1. Primary location is in BBox
+          // 2. OR Actor 1 (Source) is in BBox
+          // 3. OR Actor 2 (Target) is in BBox
+          // 4. OR It is the currently selected event (ALWAYS keep visible)
+
+          const inBBox = (latCol: string, lonCol: string) =>
+            `(${latCol} BETWEEN ${south} AND ${north} AND ${lonCol} BETWEEN ${west} AND ${east})`;
+
+          const conditions = [
+            inBBox('lat', 'lon'),
+            inBBox('actor1_lat', 'actor1_lon'),
+            inBBox('actor2_lat', 'actor2_lon'),
+          ];
+
+          if (selectedEventId) {
+            conditions.push(`id = '${selectedEventId}'`);
+          }
+
+          whereClauses.push(`(${conditions.join(' OR ')})`);
         }
 
         // Event types
@@ -63,30 +78,28 @@ export function useEvents() {
         // Search query
         let useFTS = false;
         if (filters.searchQuery) {
-           // Use FTS only if enabled in context
-           // Otherwise fallback to ILIKE (which we need to add back if FTS is disabled)
-           // But wait, my previous edit REMOVED the ILIKE clause.
-           // So I must logic: if (!ftsEnabled) -> Add ILIKE. if (ftsEnabled) -> Do nothing here, query below.
-           
-           if (!ftsEnabled) {
-              const searchTerm = filters.searchQuery.replace(/'/g, "''");
-              whereClauses.push(
-                `(title ILIKE '%${searchTerm}%' OR content ILIKE '%${searchTerm}%')`
-              );
-           } else {
-              useFTS = true;
-           }
+          // Use FTS only if enabled in context
+          // Otherwise fallback to ILIKE (which we need to add back if FTS is disabled)
+          // But wait, my previous edit REMOVED the ILIKE clause.
+          // So I must logic: if (!ftsEnabled) -> Add ILIKE. if (ftsEnabled) -> Do nothing here, query below.
+
+          if (!ftsEnabled) {
+            const searchTerm = filters.searchQuery.replace(/'/g, "''");
+            whereClauses.push(`(title ILIKE '%${searchTerm}%' OR content ILIKE '%${searchTerm}%')`);
+          } else {
+            useFTS = true;
+          }
         }
 
         const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-        
+
         let sql = '';
 
         if (useFTS && filters.searchQuery) {
-           const searchTerm = filters.searchQuery.replace(/'/g, "''");
-           // Optimized Search Query using the small 'search_index' table
-           // This scans much less data than matching against the main 'events' view
-           sql = `
+          const searchTerm = filters.searchQuery.replace(/'/g, "''");
+          // Optimized Search Query using the small 'search_index' table
+          // This scans much less data than matching against the main 'events' view
+          sql = `
              WITH search_matches AS (
                 SELECT id 
                 FROM search_index
@@ -105,8 +118,8 @@ export function useEvents() {
              LIMIT 1000
            `;
         } else {
-             // Standard Query (or ILIKE fallback if added to whereClauses)
-             sql = `
+          // Standard Query (or ILIKE fallback if added to whereClauses)
+          sql = `
               SELECT
                 id, date, title, content, author, url,
                 sentiment, eventType, lat, lon,
@@ -133,7 +146,7 @@ export function useEvents() {
     };
 
     fetchEvents();
-  }, [initialized, query, filters, ftsEnabled]);
+  }, [initialized, query, filters, ftsEnabled, selectedEventId]);
 
   return { arrowTable, loading, error };
 }
