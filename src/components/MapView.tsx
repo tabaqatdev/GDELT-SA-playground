@@ -266,8 +266,16 @@ export function MapView() {
             if (lon == null || lat == null) return [0, 0, -1];
             return [lon as number, lat as number];
           },
-          getSourceColor: [59, 130, 246, 200], // Blue (Actor 1)
-          getTargetColor: [168, 85, 247, 200], // Purple (Actor 2)
+          getSourceColor: (_: any, { index }: { index: number }) => {
+            const id = idCol?.get(index);
+            if (id === selectedEventId) return [255, 215, 0, 255]; // Gold/Yellow
+            return [59, 130, 246, 200]; // Blue (Actor 1)
+          },
+          getTargetColor: (_: any, { index }: { index: number }) => {
+            const id = idCol?.get(index);
+            if (id === selectedEventId) return [255, 215, 0, 255]; // Gold/Yellow
+            return [168, 85, 247, 200]; // Purple (Actor 2)
+          },
           getHeight: 0.3,
           greatCircle: true,
           onClick: (info: PickingInfo) => {
@@ -311,12 +319,16 @@ export function MapView() {
               }
             }
           },
+          updateTriggers: {
+            getSourceColor: [selectedEventId],
+            getTargetColor: [selectedEventId],
+          },
         })
       );
     }
 
     return allLayers;
-  }, [arrowTable, loading, activeLayers, selectEvent]);
+  }, [arrowTable, loading, activeLayers, selectEvent, selectedEventId]);
 
   // Debounce ref to prevent excessive updates during map movement/animation
   const bboxTimeoutRef = useRef<NodeJS.Timeout | null>(null);

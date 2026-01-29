@@ -26,7 +26,7 @@ export function NewsPanel() {
     location: string | null;
   } | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Fetch autocomplete suggestions
   const { suggestions } = useAutocomplete(searchInput);
 
@@ -41,7 +41,10 @@ export function NewsPanel() {
   // Handle click outside to close suggestions
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
         setShowSuggestions(false);
       }
     };
@@ -58,9 +61,12 @@ export function NewsPanel() {
 
   const getSuggestionIcon = (type: string) => {
     switch (type) {
-      case 'location': return <MapPin className="h-3 w-3 text-muted-foreground" />;
-      case 'city': return <Building className="h-3 w-3 text-muted-foreground" />;
-      default: return <User className="h-3 w-3 text-muted-foreground" />;
+      case 'location':
+        return <MapPin className="h-3 w-3 text-muted-foreground" />;
+      case 'city':
+        return <Building className="h-3 w-3 text-muted-foreground" />;
+      default:
+        return <User className="h-3 w-3 text-muted-foreground" />;
     }
   };
 
@@ -113,16 +119,14 @@ export function NewsPanel() {
           return (
             <article
               key={`${id}-${index}`}
-              onClick={() => selectEvent(id)}
+              onClick={() => selectEvent(isSelected ? null : id)}
               className={`cursor-pointer rounded-lg border p-4 transition-colors hover:bg-accent ${
                 isSelected ? 'border-primary bg-accent' : ''
               }`}
             >
               <div className="mb-2 flex items-start justify-between gap-2">
                 <h3 className="flex-1 font-semibold leading-tight">{title}</h3>
-                <span
-                  className={`shrink-0 text-xs font-medium sentiment-${sentimentCategory}`}
-                >
+                <span className={`shrink-0 text-xs font-medium sentiment-${sentimentCategory}`}>
                   {sentiment > 0 ? '+' : ''}
                   {sentiment.toFixed(1)}
                 </span>
@@ -141,18 +145,18 @@ export function NewsPanel() {
                   <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground" />
                   {formatDate(sqlDateToDate(date), language)}
                 </span>
-                
+
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setModalArticle({
                       title,
                       content,
-                      author, 
+                      author,
                       date,
                       url,
                       sentiment,
-                      location
+                      location,
                     });
                   }}
                   className="flex items-center gap-1 hover:text-primary transition-colors ml-auto font-medium"
@@ -164,8 +168,8 @@ export function NewsPanel() {
             </article>
           );
         })}
-        
-        <ArticleModal 
+
+        <ArticleModal
           isOpen={!!modalArticle}
           onClose={() => setModalArticle(null)}
           article={modalArticle}
@@ -173,17 +177,17 @@ export function NewsPanel() {
       </div>
     );
   };
-   // ... rest of component
-
+  // ... rest of component
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-b p-4 relative z-20">
         <h2 className="text-lg font-semibold">{t('news.title')}</h2>
         <p className="text-sm text-muted-foreground">
-          {arrowTable ? arrowTable.numRows : 0} {(!arrowTable || arrowTable.numRows === 1) ? t('news.article') : t('news.articles')}
+          {arrowTable ? arrowTable.numRows : 0}{' '}
+          {!arrowTable || arrowTable.numRows === 1 ? t('news.article') : t('news.articles')}
         </p>
-        
+
         {/* Search Input with Autocomplete */}
         <div ref={searchContainerRef} className="mt-3 relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -233,9 +237,7 @@ export function NewsPanel() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {renderContent()}
-      </div>
+      <div className="flex-1 overflow-y-auto">{renderContent()}</div>
     </div>
   );
 }
